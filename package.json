@@ -1,0 +1,22 @@
+{
+  "dependencies": {
+    "chess": "^1.2.2",
+    "chess.js": "^1.4.0",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "install": "^0.13.0",
+    "npm": "^10.9.3",
+    "socket": "^1.0.111",
+    "socket.io": "^4.8.1"
+  },
+  "name": "chess",
+  "version": "1.0.0",
+  "main": "app.js",
+  "scripts": {
+    "start": "nodemon app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

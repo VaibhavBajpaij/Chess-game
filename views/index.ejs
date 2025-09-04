@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <title>Document</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@900&display=swap" rel="stylesheet">
+</head>
+<style>
+   
+        .chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+            grid-template-rows: repeat(8, minmax(0, 1fr));
+            width: 400px;
+            height: 400px;
+            transform: rotate(0deg);
+        }
+
+        .piece.white {
+            color: white;
+            filter: drop-shadow(0 0 2px rgba(0, 0, 0, 1));
+        }
+
+        .piece.black {
+            color: black;
+        }
+
+        .flipped {
+            transform: rotate(180deg);
+        }
+
+        .square {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .square.light {
+            background-color: #f0d9b5;
+        }
+
+        .square.dark {
+            background-color: #b58863;
+        }
+
+        .piece {
+            font-size: 36px;
+            cursor: pointer;
+        }
+
+        .piece.draggable {
+            cursor: grab;
+        }
+
+        .dragging {
+            opacity: 0.5;
+        }
+
+        /* Rotate pieces for black player */
+        .flipped .piece {
+            transform: rotate(180deg);
+        }
+    </style>
+
+</style>
+<body class="bg-zinc-900 text-white font-sans">
+
+    <!-- Screen for choosing game mode -->
+    <div id="initial-screen" class="w-full h-screen flex flex-col items-center justify-center text-center p-4">
+        <h1 class="text-4xl md:text-5xl font-bold mb-8">Real-Time Chess</h1>
+        <div class="space-y-4 w-full max-w-sm">
+            <!-- Play with Random button -->
+            <button id="play-random-btn" class="w-full bg-amber-600 hover:bg-amber-700 px-6 py-3 rounded-lg text-xl transition-colors">Play with Random</button>
+            
+            <p class="text-zinc-400">OR</p>
+            
+            <!-- Create Private Game button -->
+            <button id="create-room-btn" class="w-full bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg text-xl transition-colors">Create Private Game</button>
+            
+            <!-- Join Game section -->
+            <div class="flex items-center space-x-2">
+                <input id="room-code-input" type="text" placeholder="Enter Game Code" class="flex-grow bg-zinc-800 border border-zinc-600 px-4 py-3 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="join-room-btn" class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg text-xl transition-colors">Join Game</button>
+            </div>
+             <p id="waiting-message" class="text-lg text-yellow-400 mt-4 h-6"></p>
+        </div>
+    </div>
+
+    <!-- The main game screen, hidden by default -->
+    <div id="game-screen" class="w-full h-screen flex flex-col items-center justify-center hidden p-4">
+        <div id="status-message" class="text-lg md:text-xl mb-4 h-8 text-center font-semibold"></div>
+        <div class="chessboard"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/chessgame.js"></script>
+</body>
+</html>
