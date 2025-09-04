@@ -59,25 +59,30 @@ io.on("connection", (socket) => {
     });
 
     // --- Room Creation ---
-   socket.on("createRoom", (userId) => {  // Changed to accept userId parameter
-    handleUserAssociation(userId, socket);
-    const roomId = Math.random().toString(36).substring(2, 7);
-    socket.join(roomId);
-    rooms.set(roomId, {
-        players: { white: socket.userId, black: null },
-        chess: new Chess(),
+    socket.on("createRoom", (userId) => {
+        handleUserAssociation(userId, socket);
+        const roomId = Math.random().toString(36).substring(2, 7);
+        socket.join(roomId);
+        rooms.set(roomId, {
+            players: { white: socket.userId, black: null },
+            chess: new Chess(),
+        });
+        socket.emit("roomCreated", roomId);
+        socket.emit("playerRole", "w");
     });
-    socket.emit("roomCreated", roomId);
-    socket.emit("playerRole", "w");
-});
 
     // --- Join Room ---
     socket.on("joinRoom", (data) => {
         const { roomId, userId } = data;
-        handleUserAssociation(userId, socket); // Ensure user is associated
+        handleUserAssociation(userId, socket);
         if (rooms.has(roomId)) {
             const room = rooms.get(roomId);
-            if (room.players.white === socket.userId) return; // Can't join own game
+            
+            // Check if user is already in this room as a player
+            if (room.players.white === socket.userId || room.players.black === socket.userId) {
+                socket.emit("error", "You are already in this game.");
+                return;
+            }
 
             if (!room.players.black) {
                 socket.join(roomId);
@@ -86,6 +91,7 @@ io.on("connection", (socket) => {
                 socket.emit("playerRole", "b");
                 io.to(roomId).emit("gameStart", { fen: room.chess.fen(), roomId });
             } else {
+                // Room is full, join as spectator
                 socket.join(roomId);
                 socket.emit("spectatorRole");
                 socket.emit("boardState", room.chess.fen());
@@ -97,38 +103,57 @@ io.on("connection", (socket) => {
 
     // --- Play with Random ---
     socket.on("playRandom", (userId) => {
-        handleUserAssociation(userId, socket); // Ensure user is associated
+        handleUserAssociation(userId, socket);
         
-          if (waitingPlayer && waitingPlayer !== userId) {
-        const opponentUserId = waitingPlayer;
-        const opponentSocket = userSocketMap.get(opponentUserId);
-        
-        if (!opponentSocket || !opponentSocket.connected) {
-            waitingPlayer = userId; // Opponent is stale, this player now waits
+        if (waitingPlayer && waitingPlayer.userId !== userId) {
+            const opponentSocket = waitingPlayer.socket;
+            
+            if (!opponentSocket.connected) {
+                // Opponent disconnected, replace with current player
+                waitingPlayer = { userId, socket };
+                socket.emit("waitingForPlayer");
+                return;
+            }
+            
+            // Match found - create room
+            const roomId = Math.random().toString(36).substring(2, 7);
+            const room = {
+                players: { white: waitingPlayer.userId, black: userId },
+                chess: new Chess(),
+            };
+            rooms.set(roomId, room);
+
+            opponentSocket.join(roomId);
+            socket.join(roomId);
+            
+            opponentSocket.emit("playerRole", "w");
+            socket.emit("playerRole", "b");
+            io.to(roomId).emit("gameStart", { fen: room.chess.fen(), roomId });
+            
+            // Clear waiting player
+            waitingPlayer = null;
+        } else {
+            // No one waiting or same player, set as waiting
+            waitingPlayer = { userId, socket };
             socket.emit("waitingForPlayer");
-            return;
+            
+            // Set timeout to clear waiting status after 30 seconds
+            setTimeout(() => {
+                if (waitingPlayer && waitingPlayer.userId === userId) {
+                    waitingPlayer = null;
+                    socket.emit("error", "Could not find an opponent. Please try again.");
+                }
+            }, 30000);
         }
-        
-        waitingPlayer = null; // Match found
+    });
 
-        const roomId = Math.random().toString(36).substring(2, 7);
-        const room = {
-            players: { white: opponentUserId, black: userId },
-            chess: new Chess(),
-        };
-        rooms.set(roomId, room);
-
-        opponentSocket.join(roomId);
-        socket.join(roomId);
-        
-        opponentSocket.emit("playerRole", "w");
-        socket.emit("playerRole", "b");
-        io.to(roomId).emit("gameStart", { fen: room.chess.fen(), roomId });
-    } else {
-        waitingPlayer = userId;  // Store userId instead of socket
-        socket.emit("waitingForPlayer");
-    }
-});
+    // --- Cancel waiting for random match ---
+    socket.on("cancelWait", (userId) => {
+        if (waitingPlayer && waitingPlayer.userId === userId) {
+            waitingPlayer = null;
+            console.log(`User ${userId} canceled waiting for random match`);
+        }
+    });
 
     // --- Move Handling ---
     socket.on("move", ({ roomId, move }) => {
@@ -167,7 +192,7 @@ io.on("connection", (socket) => {
         const userId = socket.userId;
         console.log("User disconnected:", socket.id, `(User ID: ${userId})`);
 
-        if (waitingPlayer && waitingPlayer.id === socket.id) {
+        if (waitingPlayer && waitingPlayer.userId === userId) {
             waitingPlayer = null;
         }
 
@@ -196,4 +221,3 @@ io.on("connection", (socket) => {
 server.listen(3000, () => {
     console.log("Server is running on port 3000");
 });
-

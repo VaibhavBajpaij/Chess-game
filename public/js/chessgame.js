@@ -5,7 +5,6 @@ const chessPiecesUnicode = {
     p: { w: "♙", b: "♟︎" }, r: { w: "♖", b: "♜" }, n: { w: "♘", b: "♞" },
     b: { w: "♗", b: "♝" }, q: { w: "♕", b: "♛" }, k: { w: "♔", b: "♚" },
 };
-console.log("Chess game script loaded.");
 
 // --- Persist userId ---
 let userId = localStorage.getItem("userId");
@@ -22,6 +21,7 @@ let draggingPiece = null;
 let sourceSquare = null;
 let playerRole = null;
 let roomId = null;
+let isWaitingForRandom = false;
 
 // UI Elements
 const initialScreen = document.getElementById("initial-screen");
@@ -33,25 +33,48 @@ const roomCodeInput = document.getElementById("room-code-input");
 const statusMessage = document.getElementById("status-message");
 const waitingMessage = document.getElementById("waiting-message");
 
+// Create cancel button if it doesn't exist
+let cancelWaitBtn = document.getElementById("cancel-wait-btn");
+if (!cancelWaitBtn) {
+    cancelWaitBtn = document.createElement("button");
+    cancelWaitBtn.id = "cancel-wait-btn";
+    cancelWaitBtn.textContent = "Cancel Search";
+    cancelWaitBtn.className = "w-full bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg text-xl transition-colors mt-4 hidden";
+    document.querySelector(".space-y-4").appendChild(cancelWaitBtn);
+}
+
 // --- UI Event Listeners ---
-// FIX 1: Add userId parameter to createRoom
 createRoomBtn.addEventListener("click", () => socket.emit("createRoom", userId));
 
-// FIX 2: Send an object with roomId and userId for joinRoom
 joinRoomBtn.addEventListener("click", () => {
     const code = roomCodeInput.value.trim();
     if (code) socket.emit("joinRoom", { roomId: code, userId: userId });
 });
 
-// FIX 3: Add userId parameter to playRandom
 playRandomBtn.addEventListener("click", () => {
+    if (isWaitingForRandom) return;
+    
+    isWaitingForRandom = true;
     waitingMessage.innerText = "Searching for an opponent...";
+    playRandomBtn.disabled = true;
+    cancelWaitBtn.classList.remove("hidden");
     socket.emit("playRandom", userId);
+});
+
+cancelWaitBtn.addEventListener("click", () => {
+    isWaitingForRandom = false;
+    waitingMessage.innerText = "";
+    playRandomBtn.disabled = false;
+    cancelWaitBtn.classList.add("hidden");
+    socket.emit("cancelWait", userId);
 });
 
 const switchToGameScreen = () => {
     initialScreen.classList.add("hidden");
     gameScreen.classList.remove("hidden");
+    isWaitingForRandom = false;
+    playRandomBtn.disabled = false;
+    cancelWaitBtn.classList.add("hidden");
 };
 
 // --- Core Functions ---
@@ -127,43 +150,53 @@ socket.on("roomCreated", (newRoomId) => {
     statusMessage.innerText = `Game Code: ${newRoomId} - Waiting for opponent...`;
     switchToGameScreen();
 });
+
 socket.on("roomJoined", (joinedRoomId) => {
     roomId = joinedRoomId;
     switchToGameScreen();
 });
+
 socket.on("playerRole", (role) => {
     playerRole = role;
     renderBoard();
 });
+
 socket.on("spectatorRole", () => {
     playerRole = "spectator";
     statusMessage.innerText = "You are watching as a spectator.";
     switchToGameScreen();
 });
+
 socket.on("waitingForPlayer", () => {
     waitingMessage.innerText = "Waiting for an opponent to connect...";
 });
-socket.on("gameStart", (initialFen) => {
-    chess.load(initialFen);
+
+socket.on("gameStart", (data) => {
+    chess.load(data.fen);
+    roomId = data.roomId;
     statusMessage.innerText = "Game started! It's White's turn.";
     waitingMessage.innerText = "";
     switchToGameScreen();
     renderBoard();
 });
+
 socket.on("boardState", (fen) => {
     chess.load(fen);
     renderBoard();
 });
+
 socket.on("move", (move) => {
     chess.move(move);
     const turn = chess.turn() === 'w' ? "White" : "Black";
     statusMessage.innerText = `${turn}'s turn.`;
     renderBoard();
 });
+
 socket.on("invalidMove", () => {
     console.log("Invalid move attempted.");
     renderBoard();
 });
+
 socket.on("gameOver", (reason) => {
     statusMessage.innerText = `Game Over: ${reason}`;
     document.querySelectorAll('.piece').forEach(p => {
@@ -171,8 +204,24 @@ socket.on("gameOver", (reason) => {
         p.classList.remove("draggable", "dragging");
     });
 });
+
 socket.on("error", (message) => {
     alert(message);
     waitingMessage.innerText = "";
     roomCodeInput.value = "";
+    isWaitingForRandom = false;
+    playRandomBtn.disabled = false;
+    cancelWaitBtn.classList.add("hidden");
+});
+
+// Handle disconnect events
+socket.on("disconnect", () => {
+    isWaitingForRandom = false;
+    waitingMessage.innerText = "Disconnected from server. Trying to reconnect...";
+});
+
+socket.on("reconnect", () => {
+    waitingMessage.innerText = "Reconnected to server.";
+    // Re-register with the server
+    socket.emit("register", userId);
 });
