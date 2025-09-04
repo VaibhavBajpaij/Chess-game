@@ -5,6 +5,7 @@ const chessPiecesUnicode = {
     p: { w: "♙", b: "♟︎" }, r: { w: "♖", b: "♜" }, n: { w: "♘", b: "♞" },
     b: { w: "♗", b: "♝" }, q: { w: "♕", b: "♛" }, k: { w: "♔", b: "♚" },
 };
+console.log("Chess game script loaded.");
 
 // --- Persist userId ---
 let userId = localStorage.getItem("userId");
